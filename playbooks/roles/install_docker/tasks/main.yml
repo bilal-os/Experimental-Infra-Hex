@@ -1,0 +1,59 @@
+---
+- name: Create docker group
+  group:
+    name: docker
+    state: present
+
+- name: Install Docker dependencies
+  apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - software-properties-common
+    state: present
+    update_cache: yes
+
+- name: Add Docker GPG key
+  apt_key:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    state: present
+
+- name: Add Docker repository
+  apt_repository:
+    repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu noble stable
+    state: present
+
+- name: Install Docker
+  apt:
+    name: 
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+    update_cache: yes
+
+- name: Add users to docker group
+  user:
+    name: "{{ item.username }}"
+    groups: docker
+    append: yes
+  loop: "{{ sudo_users }}"
+  tags: [users]
+
+- name: Log into Docker registry
+  community.docker.docker_login:
+    registry: "{{ registry_url }}"
+    username: "{{ registry_username }}"
+    password: "{{ registry_password }}"
+    reauthorize: yes
+  tags: [registeryLogin]
+
+- name: Give registery access to all users
+  shell: |
+    cp -r /root/.docker /home/{{ item.username }}/
+    chown -R {{ item.username }}:{{ item.username }}  /home/{{ item.username }}/.docker
+  loop: "{{ sudo_users }}"
+  tags: [registeryLogin, users]

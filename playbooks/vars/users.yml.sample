@@ -1,0 +1,5 @@
+sudo_users:
+  - username: "user1"
+    public_key_path: "keys/user1/users1.pub"
+  - username: "user2"
+    public_key_path: "keys/user2/user2.pub"

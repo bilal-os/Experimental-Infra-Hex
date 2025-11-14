@@ -1,0 +1,27 @@
+---
+- name: Create certbot directory nginx
+  file:
+    path: /home/user/nginx/certbot
+    state: directory
+    mode: '0755'
+
+- name: Run Certbot with DNS Challenge
+  community.docker.docker_container:
+    name: certbot_dns
+    image: certbot/certbot
+    command: >
+      certonly --webroot -w {{ item.path }}
+      --email jawad@questra.digital
+      --agree-tos
+      -d {{ item.domain }}
+    volumes:
+      - "/home/user/nginx/certbot/letsencrypt:/etc/letsencrypt"
+      - "/home/user/nginx/www/{{ item.name }}:{{ item.path }}"
+    auto_remove: true
+  loop: "{{ domains }}"
+
+- name: Restart nginx server
+  community.docker.docker_container:
+    name: nginx_container
+    restart: true
+    state: started

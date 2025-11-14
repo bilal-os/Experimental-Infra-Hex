@@ -1,0 +1,13 @@
+---
+- name: Create admin group
+  group:
+    name: admin
+    state: present
+
+- name: Install required packages
+  apt:
+    name:
+      - sudo
+      - openssh-server
+    state: present
+    update_cache: yes

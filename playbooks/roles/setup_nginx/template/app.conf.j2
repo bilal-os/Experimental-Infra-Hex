@@ -1,0 +1,23 @@
+server {
+    listen 80;
+    server_name {{ item.domain }};
+
+    root {{ item.path }};
+
+    location / {
+    }
+}
+
+
+server {
+    listen 443 ssl;
+    server_name {{ item.domain }};
+
+    root {{ item.path }};
+
+    ssl_certificate /etc/letsencrypt/live/{{ item.domain }}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/{{ item.domain }}/privkey.pem;
+
+    location / {
+    }
+}

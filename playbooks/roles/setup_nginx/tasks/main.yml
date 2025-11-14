@@ -1,0 +1,60 @@
+---
+- name: Create Nginx config directory
+  file:
+    path: /home/user/nginx/conf
+    state: directory
+    mode: '0755'
+
+- name: Create Web site directories
+  file:
+    path: "/home/user/nginx/www/{{ item.name }}"
+    state: directory
+    mode: '0755'
+  loop: "{{ domains }}"
+
+- name: Copy Nginx configuration files
+  template:
+    src: ../template/app.conf.j2
+    dest: "/home/user/nginx/conf/{{ item.name }}.conf"
+    mode: '0644'
+  loop: "{{ domains }}"
+
+- name: Copy sample web page files
+  template:
+    src: ../template/app.html.j2
+    dest: "/home/user/nginx/www/{{ item.name }}/index.html"
+    mode: '0644'
+  loop: "{{ domains }}"
+
+- name: Pull Nginx Image
+  community.docker.docker_image:
+    name: nginx
+    source: pull
+
+- name: Create a network
+  community.docker.docker_network:
+    name: reverse_proxy
+
+- name: Run Nginx Container
+  community.docker.docker_container:
+    name: nginx_container
+    image: nginx
+    state: started
+    restart_policy: always
+    published_ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - name: reverse_proxy
+    volumes:
+      - "/home/user/nginx/conf:/etc/nginx/conf.d"
+      - "/home/user/nginx/certbot/letsencrypt:/etc/letsencrypt"
+      - "/home/user/nginx/www:/var/www"
+
+- name: Ensure Nginx is Running
+  command: docker ps
+  register: container_status
+
+- name: Show Running Containers
+  debug:
+    msg: "{{ container_status.stdout }}"
