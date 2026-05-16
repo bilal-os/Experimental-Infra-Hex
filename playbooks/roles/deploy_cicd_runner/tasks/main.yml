@@ -1,0 +1,127 @@
+---
+# ============================================
+#  CI/CD RUNNER DEPLOYMENT
+# ============================================
+
+# Create directory for CI/CD Runner
+- name: Ensure CI/CD Runner directory exists
+  file:
+    path: "{{ cicd_runner_dir }}"
+    state: directory
+    mode: "0755"
+
+# Download ngrok tarball
+- name: Download ngrok tarball
+  get_url:
+    url: "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz"
+    dest: "/tmp/ngrok.tgz"
+    mode: "0644"
+
+# Extract ngrok binary
+- name: Extract ngrok binary
+  unarchive:
+    src: "/tmp/ngrok.tgz"
+    dest: "/tmp/"
+    remote_src: yes
+
+# Move binary into /usr/local/bin
+- name: Install ngrok to /usr/local/bin
+  command: mv /tmp/ngrok /usr/local/bin/ngrok
+  args:
+    creates: /usr/local/bin/ngrok
+  become: true
+
+# Ensure ngrok is executable
+- name: Ensure ngrok is executable
+  file:
+    path: /usr/local/bin/ngrok
+    mode: "0755"
+  become: true
+
+
+# Configure ngrok authtoken
+- name: Configure ngrok authtoken
+  command: "ngrok config add-authtoken {{ cicd_runner_env.secret.NGROK_AUTHTOKEN }}"
+  become: true
+
+- name: Create systemd unit for ngrok
+  copy:
+    dest: /etc/systemd/system/ngrok.service
+    content: |
+      [Unit]
+      Description=ngrok tunnel
+      After=network.target
+
+      [Service]
+      ExecStart=/usr/local/bin/ngrok http 8086
+      Restart=always
+      User=root
+
+      [Install]
+      WantedBy=multi-user.target
+    mode: "0644"
+  become: true
+
+
+# Reload systemd to detect new service
+- name: Reload systemd
+  systemd:
+    daemon_reload: yes
+  become: true
+
+# Start ngrok service
+- name: Start ngrok service on 8086
+  systemd:
+    name: ngrok
+    state: started
+    enabled: true
+  become: true
+
+# Wait for ngrok API to respond
+- name: Wait for ngrok API to become available
+  uri:
+    url: http://127.0.0.1:4040/api/tunnels
+    method: GET
+    return_content: yes
+  register: ngrok_api
+  retries: 10
+  delay: 2
+  until: ngrok_api.status == 200
+
+# Extract https public tunnel
+- name: Extract ngrok public URL
+  set_fact:
+    ngrok_public_url: "{{ (ngrok_api.json.tunnels | selectattr('proto', 'equalto', 'https') | list)[0].public_url }}"
+
+# Generate .env file for CI/CD runner, injecting the CALLBACK URL
+- name: Generate .env file for CI/CD Runner
+  copy:
+    dest: "{{ cicd_runner_dir }}/.env"
+    content: |
+      PORT={{ cicd_runner_env.secret.PORT }}
+      DB_URL={{ cicd_runner_env.secret.DB_URL }}
+      SECRET={{ cicd_runner_env.secret.SECRET }}
+      FRONTEND_URL={{ cicd_runner_env.secret.FRONTEND_URL }}
+      REVERSE_PROXY_URL={{ cicd_runner_env.secret.REVERSE_PROXY_URL }}
+      CALLBACK_URL={{ ngrok_public_url }}/hook_callback
+    mode: "0666"
+
+# Copy docker-compose file
+- name: Copy docker-compose.yml for CI/CD Runner
+  copy:
+    src: "../templates/docker-compose.yml"
+    dest: "{{ cicd_runner_dir }}/docker-compose.yml"
+    mode: "0644"
+
+# Log in to GitHub Container Registry
+- name: Log in to GitHub Container Registry
+  community.docker.docker_login:
+    registry_url: ghcr.io
+    username: "{{ ghcr_username }}"
+    password: "{{ ghcr_token }}"
+
+# Start CI/CD runner containers
+- name: Start CI/CD Runner containers
+  command: docker-compose up -d
+  args:
+    chdir: "{{ cicd_runner_dir }}"

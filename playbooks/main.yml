@@ -1,16 +1,41 @@
 ---
 - name: Use the VM's assigned IP
   hosts: all
-  become: true
-  vars_files:
+  become: true # Escalate privilege escalation (sudo) for all tasks
+  vars_files: # Loads external variables
     - vars/users.yml
     - vars/domains.yml
+    - vars/secrets.yml
+    - vars/secrets_db.yml
+    - vars/auth_module/common_secrets.yml
+    - vars/auth_module/email_service_env.yml
+    - vars/auth_module/api_gateway_env.yml
+    - vars/auth_module/auth_service_env.yml
+    - vars/auth_module/otp_service_env.yml
+    - vars/selenium_grid/secrets.yml
+    - vars/cicd_runner/secrets.yml
+  
+  # Update apt cache once before any roles are executed
+  pre_tasks:
+    - name: Update apt cache once
+      apt:
+        update_cache: yes
+
   roles:
     - role: common_config
     - role: ssh_users
-      tags: [all, users]
+      tags: [users]
     - role: install_docker
-      tags: [all, docker]
+      tags: [docker]
     - role: setup_nginx
-      tags: [all, nginx]
+      tags: [nginx]
     - role: setup_ssl
+      tags: [ssl]
+    - role: setup_postgresql
+      tags: [postgresql]
+    - role: deploy_auth_module
+      tags: [auth_module]
+    - role: deploy_selenium_grid
+      tags: [selenium_grid]
+    - role: deploy_cicd_runner
+      tags: [cicd_runner]

@@ -1,0 +1,58 @@
+- name: Ensure Selenium Grid directory exists
+  file:
+    path: "{{ selenium_grid_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Ensure directory for reverse proxy exists
+  file:
+    path: "{{selenium_grid_dir}}/reverse-proxy"
+    state: directory
+    mode: "0755"
+
+# Generate .env file for reverse proxy
+- name: Create .env file for reverse proxy
+  copy:
+    dest: "{{ selenium_grid_dir }}/reverse-proxy/.env"
+    content: |
+      {% for key, value in item.env.items() %}
+      {{ key }}={{ value }}
+      {% endfor %}
+    mode: "0666"
+  loop:
+    - env: "{{ reverse_proxy_env }}"
+
+- name: Copy docker-compose.yml for Selenium Grid
+  copy:
+    src: "../templates/docker-compose.yml"
+    dest: "{{ selenium_grid_dir }}/docker-compose.yml"
+    mode: "0644"
+
+  # Allow Docker network in PostgreSQL
+- name: Allow Docker network in PostgreSQL
+  lineinfile:
+    path: /etc/postgresql/16/main/pg_hba.conf
+    line: "host    all     all     172.30.0.0/24     md5"
+    state: present
+  become: true
+
+
+  # Reload PostgreSQL to apply changes
+- name: Reload PostgreSQL
+  systemd:
+    name: postgresql
+    state: reloaded
+  become: true
+
+# Log in to GitHub Container Registry
+- name: Log in to GitHub Container Registry
+  community.docker.docker_login:
+    registry_url: ghcr.io
+    username: "{{ ghcr_username }}"
+    password: "{{ ghcr_token }}"
+
+# Start containers
+- name: Start containers
+  command: docker-compose up -d
+  args:
+    chdir: "{{ selenium_grid_dir }}"

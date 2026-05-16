@@ -1,0 +1,62 @@
+services:
+  selenium-hub:
+    image: selenium/hub:latest
+    ports:
+      - "4444:4444"
+    networks:
+      - selenium-network
+
+  chrome:
+    image: selenium/node-chrome:latest
+    container_name: node-chrome
+    depends_on:
+      - selenium-hub
+    volumes:
+      - /dev/shm:/dev/shm
+    environment:
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+      - HUB_HOST=selenium-hub
+      - HUB_PORT=4444
+    networks:
+      - selenium-network
+
+  firefox:
+    image: selenium/node-firefox:latest
+    container_name: node-firefox
+    depends_on:
+      - selenium-hub
+    volumes:
+      - /dev/shm:/dev/shm
+    environment:
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+      - HUB_HOST=selenium-hub
+      - HUB_PORT=4444
+    networks:
+      - selenium-network
+
+ 
+  reverse-proxy-server:
+    image: ghcr.io/bilal-os/t-hex/reverse-proxy-server:latest
+    container_name: reverse-proxy-server
+    ports:
+      - "4445:4445"
+    networks:
+      - selenium-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file:
+      - ./reverse-proxy/.env
+    depends_on:
+      - selenium-hub
+      
+
+networks:
+  selenium-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24

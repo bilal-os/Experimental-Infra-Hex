@@ -1,0 +1,58 @@
+# Required dependencies
+- name: Install psycopg2 dependencies
+  apt:
+    name:
+      - python3-psycopg2
+      - python3-dev
+      - libpq-dev
+    state: present
+    update_cache: yes
+  become: true
+
+
+- name: Install PostgreSQL
+  apt:
+    name: postgresql
+    state: present
+    update_cache: yes
+
+- name: Ensure PostgreSQL service is running
+  service:
+    name: postgresql
+    state: started
+    enabled: yes
+
+- name: Ensure PostgreSQL listens on all interfaces
+  lineinfile:
+    path: "/etc/postgresql/{{ pg_version }}/main/postgresql.conf"
+    regexp: '^#?listen_addresses\s*='
+    line: "listen_addresses = '*'"
+    state: present
+  become: true
+
+#For these are done mannually, due to failure of connecting as postgres user
+
+# - name: Set postgres password via psql
+#  become: true
+#  become_user: postgres
+#  shell: |
+#    psql -v ON_ERROR_STOP=1 -c "ALTER USER postgres WITH PASSWORD '{{ postgres_password }}';"
+#  args:
+#    warn: false
+
+
+#- name: Create application database
+#  postgresql_db:
+#    name: "{{ app_db_name_1 }}"
+#    owner: postgres
+#    encoding: UTF8
+#    state: present
+#  become: true
+
+#- name: Create another database
+#  postgresql_db:
+#    name: "{{ app_db_name_2 }}"
+#    owner: postgres
+#    encoding: UTF8
+#    state: present
+#  become: true

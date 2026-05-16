@@ -1,0 +1,78 @@
+- name: Ensure frontend directory exists
+  file:
+    path: "{{ frontend_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: Clone frontend repository
+  git:
+    repo: "{{ frontend_repo }}"
+    dest: "{{ frontend_dir }}"
+    version: "{{ frontend_version }}"
+    update: yes
+
+- name: Ensure Node.js is installed
+  apt:
+    name: nodejs
+    state: present
+    update_cache: yes
+  become: true
+
+- name: Ensure npm is installed
+  apt:
+    name: npm
+    state: present
+    update_cache: yes
+  become: true
+
+- name: Install frontend dependencies
+  npm:
+    path: "{{ frontend_dir }}"
+    production: no
+
+- name: Create .env file for frontend
+  copy:
+    dest: "{{ frontend_dir }}/.env.production"
+    content: |
+      {% for key, value in frontend_env.items() %}
+      {{ key }}={{ value }}
+      {% endfor %}
+    mode: "0644"
+
+- name: Build Next.js project
+  npm:
+    path: "{{ frontend_dir }}"
+    command: run build
+    production: yes
+
+- name: Ensure nginx www directory exists
+  file:
+    path: "{{ nginx_www_dir }}"
+    state: directory
+    mode: '0755'
+
+
+- name: Copy built frontend to nginx www directory
+  synchronize:
+    src: "{{ frontend_dir }}/.next"
+    dest: "{{ nginx_www_dir }}/.next"
+    recursive: yes
+
+
+
+- name: Copy public folder to nginx www directory
+  synchronize:
+    src: "{{ frontend_dir }}/public/"
+    dest: "{{ nginx_www_dir }}/public/"
+    recursive: yes
+
+- name: Deploy Nginx configuration for frontend
+  template:
+    src: nginx.conf.j2
+    dest: "/home/{{ ansible_user }}/nginx/conf/thex.conf"
+    mode: '0644'
+
+- name: Restart Nginx container
+  community.docker.docker_container:
+    name: nginx_container
+    state: restarted

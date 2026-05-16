@@ -1,3 +1,4 @@
 ---
+# Download and install Docker-related modules and plugins
 collections:
   - name: community.docker

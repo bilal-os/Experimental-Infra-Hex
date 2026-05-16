@@ -1,0 +1,17 @@
+services:
+  cicd_runner:
+    image: ghcr.io/bilal-os/t-hex/cicd-runner:latest
+    container_name: cicd_runner
+    ports:
+      - "8086:8086"
+    env_file:
+      - ./.env
+      
+    volumes:
+      - test_cases:/app/test_cases
+    restart: always
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  test_cases:

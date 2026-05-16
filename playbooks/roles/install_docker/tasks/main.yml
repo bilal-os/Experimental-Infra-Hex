@@ -11,6 +11,7 @@
       - ca-certificates
       - curl
       - software-properties-common
+      - gnupg
     state: present
     update_cache: yes
 
@@ -23,6 +24,7 @@
   apt_repository:
     repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu noble stable
     state: present
+    update_cache: yes  
 
 - name: Install Docker
   apt:
@@ -32,8 +34,15 @@
       - containerd.io
       - docker-buildx-plugin
       - docker-compose-plugin
-    state: present
+    state: latest
     update_cache: yes
+
+- name: Ensure Docker is running
+  systemd:
+    name: docker
+    state: started
+    enabled: yes
+
 
 - name: Add users to docker group
   user:
