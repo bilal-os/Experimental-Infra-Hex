@@ -1,10 +1,4 @@
 ---
-- name: Create certbot directory nginx
-  file:
-    path: /home/user/nginx/certbot
-    state: directory
-    mode: '0755'
-
 - name: Run Certbot with DNS Challenge
   community.docker.docker_container:
     name: certbot_dns
@@ -17,7 +11,14 @@
     volumes:
       - "/home/user/nginx/certbot/letsencrypt:/etc/letsencrypt"
       - "/home/user/nginx/www/{{ item.name }}:{{ item.path }}"
-    auto_remove: true
+    auto_remove: yes
+  loop: "{{ domains }}"
+
+- name: Copy HTTPS Nginx configuration files
+  template:
+    src: ../../setup_nginx/template/https_configs/app.conf.j2
+    dest: "/home/user/nginx/conf/{{ item.name }}.conf"
+    mode: "0644"
   loop: "{{ domains }}"
 
 - name: Restart nginx server

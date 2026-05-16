@@ -1,0 +1,76 @@
+- name: Ensure directory for auth module exists
+  file:
+    path: "{{ docker_compose_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Define service list with env dicts
+  set_fact:
+    services:
+      - name: email-service
+        env: "{{ email_service_env }}"
+      - name: api-gateway
+        env: "{{ api_gateway_env }}"
+      - name: auth-service
+        env: "{{ auth_service_env }}"
+      - name: otp-service
+        env: "{{ otp_service_env }}"
+
+# Ensure service directories exist
+- name: Ensure directories for each service exist
+  file:
+    path: "{{ docker_compose_dir }}/{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - email-service
+    - api-gateway
+    - auth-service
+    - otp-service
+
+# Generate .env files
+- name: Create .env file for each service
+  copy:
+    dest: "{{ docker_compose_dir }}/{{ item.name }}/.env"
+    content: |
+      {% for key, value in item.env.items() %}
+      {{ key }}={{ value }}
+      {% endfor %}
+    owner: "{{ deploy_user | default('root') }}"
+    group: "{{ deploy_user | default('root') }}"
+    mode: "0666"
+  loop: "{{ services }}"
+
+- name: Copy docker-compose.yml
+  copy:
+    src: "../templates/docker-compose.yml"
+    dest: "{{ docker_compose_dir }}/docker-compose.yml"
+    mode: "0644"
+
+  # Allow Docker network in PostgreSQL
+- name: Allow Docker network in PostgreSQL
+  lineinfile:
+    path: /etc/postgresql/16/main/pg_hba.conf
+    line: "host    all     all     172.25.0.0/16     md5"
+    state: present
+  become: true
+
+  # Reload PostgreSQL to apply changes
+- name: Reload PostgreSQL
+  systemd:
+    name: postgresql
+    state: reloaded
+  become: true
+
+# Log in to GitHub Container Registry
+- name: Log in to GitHub Container Registry
+  community.docker.docker_login:
+    registry_url: ghcr.io
+    username: "{{ ghcr_username }}"
+    password: "{{ ghcr_token }}"
+
+# Start containers
+- name: Start containers
+  command: docker-compose up -d
+  args:
+    chdir: "{{ docker_compose_dir }}"
